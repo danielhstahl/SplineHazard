@@ -10,6 +10,8 @@ This is a C++ engine applying the PD, LGD, and loan contribution models.  It can
 Requires Visual Studio 2015.  By default, uses C:\Program Files (x86)\Microsoft Visual Studio 14.0\VC\vcvarsall.bat.  
 In the root of the project, run the following commands in order:
 
+`git clone https://github.com/miloyip/rapidjson.git`
+
 `make`  This compiles the program into Main.exe.  If vcvarsall.bat lives in a different directory than C:\Program Files (x86)\Microsoft Visual Studio 14.0\VC\, change the make.bat file to point to the directory.
 
 ### Documentation generator
