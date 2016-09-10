@@ -56,6 +56,9 @@ public:
 	void push_back(const T& value){
 		container.push_back(value);
 	}
+	void emplace_back(const T& value){
+		container.emplace_back(value);
+	}
 	double getMean(int j){
 		int n=getN();
 		double mean=0;
