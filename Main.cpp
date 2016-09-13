@@ -63,7 +63,7 @@ void getRawData(int asOf, std::string& sqlQuery, DB db, std::vector<std::string>
     //std::string timeRemaining="DateDiff(m, GETDATE(), MaturityDate)";
     //NEED MATURITY DATE
     std::string timeRemaining="72";
-    std::string sqlAllDataQuery="SELECT "+monthsOnBook+" as monthsOnBook, Month(BookingDate) as monthBooked, "+timeRemaining+" as timeRemaining, CASE WHEN DefaultDate<=DateAdd(m, -"+strAsOf+", GETDATE()) THEN 1 ELSE 0 END As didDefault"+coefs+", APR, AmountFinanced, CollateralValue FROM SandBox.PortSim.LossesByRisk t1 INNER JOIN ("+sqlQuery+") t2 ON t1.LoanNumber=t2.LoanNumber Where EquifaxScore IS NOT NULL";
+    std::string sqlAllDataQuery="SELECT "+monthsOnBook+" as monthsOnBook, Month(BookingDate) as monthBooked, "+timeRemaining+" as timeRemaining, CASE WHEN DefaultDate<=DateAdd(m, -"+strAsOf+", GETDATE()) THEN 1 ELSE 0 END As didDefault"+coefs+", APR, AmountFinanced, CollateralValue FROM SandBox.PortSim.LossesByRisk t1 INNER JOIN ("+sqlQuery+") t2 ON t1.LoanNumber=t2.LoanNumber WHERE CloseOutDate IS NULL OR CASE WHEN DefaultDate<=DateAdd(m, -"+strAsOf+", GETDATE()) THEN 1 ELSE 0 END=1 /*Where EquifaxScore IS NOT NULL*/";
     //sendError(id, sqlAllDataQuery);//for testing!
     std::thread t1([&](){
         db.query(sqlAllDataQuery, totalLength, [&](auto& val, int row, int column){
