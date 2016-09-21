@@ -85,18 +85,19 @@ TEST_CASE("Test simulateDistribution", "[MC]"){
     
 }
 TEST_CASE("Test sort_indexes", "[RiskContribution]"){
-    std::vector<double> port={1, 2, 3, 4, 5};
-    RiskContribution<Upper> rcu(port);
     std::vector<double> testIndexu={4.0, 3.0, 5.0, 8.0, 1.0};
+    RiskContribution<Upper> rcu(testIndexu);
     std::vector<size_t> expectedu={4, 1, 0, 2, 3};
     REQUIRE(rcu.sort_indexes(testIndexu)==expectedu);
     REQUIRE(rcu.getVaR(.99)==8.0);
 
-    RiskContribution<Lower> rcl(port);
     std::vector<double> testIndexl={4.0, 3.0, 5.0, 8.0, 1.0};
+    RiskContribution<Lower> rcl(testIndexl);
     std::vector<size_t> expectedl={3, 2, 0, 1, 4};
     REQUIRE(rcl.sort_indexes(testIndexl)==expectedl);
     REQUIRE(rcl.getVaR(.99)==1.0);
+
+    
 }
 /*TEST_CASE("Test NodeCommunication", "[NodeCommunicate]"){
     std::streambuf *sbuf = std::cout.rdbuf();

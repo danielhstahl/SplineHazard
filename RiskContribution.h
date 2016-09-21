@@ -55,7 +55,7 @@ public:
     @param q The confidence level of VaR (eg, .99)
     @return Portfolio VaR
     */
-    double getVaR(double q){ //eg, .99.  
+    double getVaR(double q){ //eg, .99.
         return port[idx[(int)(q*m)]];
     }
     /**

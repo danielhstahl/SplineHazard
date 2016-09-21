@@ -50,8 +50,8 @@ void getRawData(int asOf, std::string& sqlQuery, DB db, std::vector<std::string>
     double totalLoans;
     int includeMOB;
     std::string strAsOf=std::to_string(asOf);
-    int totalLength=hCoefs.size()+lCoefs.size()+7;//first four of the data: monthsOnBook, monthBooked, etc, and last three APR, AmountFinanced, Collateral
-    int cLength=hCoefs.size()+4;//to filter column num
+    int totalLength=hCoefs.size()+lCoefs.size()+6;//first three of the data: monthsOnBook, monthBooked, timeRemaining, and last three APR, AmountFinanced, Collateral
+    int cLength=hCoefs.size()+3;//to filter column num
     std::string coefs="";
     for(auto& v:hCoefs){
         coefs+=(", "+v);
@@ -63,7 +63,7 @@ void getRawData(int asOf, std::string& sqlQuery, DB db, std::vector<std::string>
     //std::string timeRemaining="DateDiff(m, GETDATE(), MaturityDate)";
     //NEED MATURITY DATE
     std::string timeRemaining="72";
-    std::string sqlAllDataQuery="SELECT "+monthsOnBook+" as monthsOnBook, Month(BookingDate) as monthBooked, "+timeRemaining+" as timeRemaining, CASE WHEN DefaultDate<=DateAdd(m, -"+strAsOf+", GETDATE()) THEN 1 ELSE 0 END As didDefault"+coefs+", APR, AmountFinanced, CollateralValue FROM SandBox.PortSim.LossesByRisk t1 INNER JOIN ("+sqlQuery+") t2 ON t1.LoanNumber=t2.LoanNumber WHERE TerminationDate IS NULL OR CASE WHEN DefaultDate<=DateAdd(m, -"+strAsOf+", GETDATE()) THEN 1 ELSE 0 END=1 /*Where EquifaxScore IS NOT NULL*/";
+    std::string sqlAllDataQuery="SELECT "+monthsOnBook+" as monthsOnBook, Month(BookingDate) as monthBooked, "+timeRemaining+" as timeRemaining/*, CASE WHEN DefaultDate<=DateAdd(m, -"+strAsOf+", GETDATE()) THEN 1 ELSE 0 END As didDefault*/"+coefs+", APR, AmountFinanced, CollateralValue FROM SandBox.PortSim.LossesByRisk t1 INNER JOIN ("+sqlQuery+") t2 ON t1.LoanNumber=t2.LoanNumber WHERE TerminationDate IS NULL /*OR CASE WHEN DefaultDate<=DateAdd(m, -"+strAsOf+", GETDATE()) THEN 1 ELSE 0 END=1*/ /*Where EquifaxScore IS NOT NULL*/";
     //sendError(id, sqlAllDataQuery);//for testing!
     std::thread t1([&](){
         db.query(sqlAllDataQuery, totalLength, [&](auto& val, int row, int column){
@@ -76,9 +76,9 @@ void getRawData(int asOf, std::string& sqlQuery, DB db, std::vector<std::string>
             else if(column==2){
                 model.addTimeRemaining(val);
             }
-            else if(column==3){
+            /*else if(column==3){
                 model.addDefaultIndicator(val);
-            }
+            }*/
             else if(column<cLength){
                 haz.addAttribute(val);
             }
@@ -89,7 +89,7 @@ void getRawData(int asOf, std::string& sqlQuery, DB db, std::vector<std::string>
             sendError(id, msg);
         });
     });
-    std::string getSummaryQuery="SELECT SUM(AmountFinanced) as totalFinanced, COUNT(AMountFinanced) as totalN, CASE WHEN DateDiff(d, MAX(EOMONTH(BookingDate)), MIN(EOMONTH(BookingDate)))=0 THEN 1 ELSE 0 END as includeMonthsOnBook  FROM SandBox.PortSim.LossesByRisk t1 INNER JOIN ("+sqlQuery+") t2 ON t1.LoanNumber=t2.LoanNumber WHERE EquifaXScore IS NOT NULL";
+    std::string getSummaryQuery="SELECT SUM(AmountFinanced) as totalFinanced, COUNT(AMountFinanced) as totalN, CASE WHEN DateDiff(d, MAX(EOMONTH(BookingDate)), MIN(EOMONTH(BookingDate)))=0 THEN 1 ELSE 0 END as includeMonthsOnBook  FROM SandBox.PortSim.LossesByRisk t1 INNER JOIN ("+sqlQuery+") t2 ON t1.LoanNumber=t2.LoanNumber /*WHERE EquifaXScore IS NOT NULL*/";
     //sendError(id, getSummaryQuery);//for testing!
     db.query(getSummaryQuery, 3,
         [&](auto& val, int row, int column){
@@ -386,10 +386,12 @@ int main(){
         auto iterSql=val.FindMember("sql");
         if(iterAsOf==val.MemberEnd()||iterSql==val.MemberEnd()){
             sendError(id, std::string("Requires asOf and sql key!"));
+            return;
         }
         init(iterAsOf->value.GetInt(), std::string(iterSql->value.GetString()),  id, [&](std::string& message){
             cb(id, message);
         });
+        
     });
     nc.addEndPoint(std::string("reset"), [](rapidjson::Value& val, std::string& id,  tcb cb){
         model.reset_all();
@@ -405,6 +407,7 @@ int main(){
         auto iterType=val.FindMember("type");
         if(iterN==val.MemberEnd()||iterType==val.MemberEnd()){
             sendError(id, std::string("Requires n and type key!"));
+            return;
         }
         try{
             if(!model.hasRun()){
@@ -431,7 +434,6 @@ int main(){
         catch(int e){
             sendError(id, std::string("MC Failed"));
         }
-
     });
     nc.start();
 }
