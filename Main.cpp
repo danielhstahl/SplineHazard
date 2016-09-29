@@ -50,8 +50,8 @@ void getRawData(int asOf, std::string& sqlQuery, DB db, std::vector<std::string>
     double totalLoans;
     int includeMOB;
     std::string strAsOf=std::to_string(asOf);
-    int totalLength=hCoefs.size()+lCoefs.size()+6;//first three of the data: monthsOnBook, monthBooked, timeRemaining, and last three APR, AmountFinanced, Collateral
-    int cLength=hCoefs.size()+3;//to filter column num
+    int totalLength=hCoefs.size()+lCoefs.size()+7;//first four of the data: monthsOnBook, monthBooked, timeRemaining, didDefault, and last three APR, AmountFinanced, Collateral
+    int cLength=hCoefs.size()+4;//to filter column num
     std::string coefs="";
     for(auto& v:hCoefs){
         coefs+=(", "+v);
@@ -63,8 +63,7 @@ void getRawData(int asOf, std::string& sqlQuery, DB db, std::vector<std::string>
     //std::string timeRemaining="DateDiff(m, GETDATE(), MaturityDate)";
     //NEED MATURITY DATE
     std::string timeRemaining="72";
-    std::string sqlAllDataQuery="SELECT "+monthsOnBook+" as monthsOnBook, Month(BookingDate) as monthBooked, "+timeRemaining+" as timeRemaining/*, CASE WHEN DefaultDate<=DateAdd(m, -"+strAsOf+", GETDATE()) THEN 1 ELSE 0 END As didDefault*/"+coefs+", APR, AmountFinanced, CollateralValue FROM SandBox.PortSim.LossesByRisk t1 INNER JOIN ("+sqlQuery+") t2 ON t1.LoanNumber=t2.LoanNumber WHERE TerminationDate IS NULL /*OR CASE WHEN DefaultDate<=DateAdd(m, -"+strAsOf+", GETDATE()) THEN 1 ELSE 0 END=1*/ /*Where EquifaxScore IS NOT NULL*/";
-    //sendError(id, sqlAllDataQuery);//for testing!
+    std::string sqlAllDataQuery="SELECT "+monthsOnBook+" as monthsOnBook, Month(BookingDate) as monthBooked, "+timeRemaining+" as timeRemaining, CASE WHEN TerminationDate<=DateAdd(m, -"+strAsOf+", GETDATE()) THEN 1 ELSE 0 END As didTerm"+coefs+", APR, AmountFinanced, CollateralValue FROM SandBox.PortSim.LossesByRisk t1 INNER JOIN ("+sqlQuery+") t2 ON t1.LoanNumber=t2.LoanNumber /*WHERE TerminationDate IS NULL OR CASE WHEN DefaultDate<=DateAdd(m, -"+strAsOf+", GETDATE()) THEN 1 ELSE 0 END=1*/ /*Where EquifaxScore IS NOT NULL*/";
     std::thread t1([&](){
         db.query(sqlAllDataQuery, totalLength, [&](auto& val, int row, int column){
             if(column==0){
@@ -76,9 +75,9 @@ void getRawData(int asOf, std::string& sqlQuery, DB db, std::vector<std::string>
             else if(column==2){
                 model.addTimeRemaining(val);
             }
-            /*else if(column==3){
-                model.addDefaultIndicator(val);
-            }*/
+            else if(column==3){
+                model.addTermIndicator(val);
+            }
             else if(column<cLength){
                 haz.addAttribute(val);
             }
@@ -90,7 +89,6 @@ void getRawData(int asOf, std::string& sqlQuery, DB db, std::vector<std::string>
         });
     });
     std::string getSummaryQuery="SELECT SUM(AmountFinanced) as totalFinanced, COUNT(AMountFinanced) as totalN, CASE WHEN DateDiff(d, MAX(EOMONTH(BookingDate)), MIN(EOMONTH(BookingDate)))=0 THEN 1 ELSE 0 END as includeMonthsOnBook  FROM SandBox.PortSim.LossesByRisk t1 INNER JOIN ("+sqlQuery+") t2 ON t1.LoanNumber=t2.LoanNumber /*WHERE EquifaXScore IS NOT NULL*/";
-    //sendError(id, getSummaryQuery);//for testing!
     db.query(getSummaryQuery, 3,
         [&](auto& val, int row, int column){
             switch(column){

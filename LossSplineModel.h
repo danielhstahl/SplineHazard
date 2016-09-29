@@ -29,7 +29,8 @@ private:
 	std::vector<double> timeOnBooks;
 	std::vector<double> timeRemaining;
 	std::vector<double> bookMonth;
-	//std::vector<int> defaultIndicator;
+	std::vector<int> termIndicator;
+    int totalActiveLoans=0;
     double error;
     double estimate;
     double lowBound;
@@ -43,18 +44,31 @@ public:
     resets the class to an initial state*/
 	void reset_all(){
         mcRun=false;
+        totalActiveLoans=0;
 		timeOnBooks.clear();
 		timeRemaining.clear();
 		bookMonth.clear();
 	}
-    /**Add the time remaining to a loan-level vector.
-    @param time The time remaining to maturity (in months)
+    /**Checks whether the MC sim has run already
+    @return Boolean for whether MC sim has run
     */ 
     bool hasRun(){
         return mcRun;
     }
+    /**Add the time remaining to a loan-level vector.
+    @param time The time remaining to maturity (in months)
+    */ 
     void addTimeRemaining(double time){
 		timeRemaining.emplace_back(time);
+	}
+    /**Add whether the loan has terminated yet.
+    @param didTerm Indicator for termination
+    */ 
+    void addTermIndicator(int didTerm){
+        if(didTerm==0){
+            totalActiveLoans++;
+        }
+		termIndicator.emplace_back(didTerm);
 	}
     /**Add the month booked to a loan-level vector.
     @param bookM The month booked (eg 4 for April)
@@ -128,16 +142,18 @@ public:
         int minTimeOnBooks=(int)totalLengthOnBooks; 
 		std::vector<double> expectedCurve(minTimeOnBooks, 0.0);
         for(int j=0; j<totalLoans; ++j){
-            if(timeOnBooks[j]<minTimeOnBooks){
-                minTimeOnBooks=timeOnBooks[j];
+            if(termIndicator[j]==0){
+                if(timeOnBooks[j]<minTimeOnBooks){
+                    minTimeOnBooks=timeOnBooks[j];
+                }
+                for(int i=0; i<timeRemaining[j]-1; ++i){
+                    double totalTime=timeOnBooks[j]+i;
+                    double pd1=pdModel(j, totalTime, timeOnBooks[j]);
+                    double pd2=pdModel(j, totalTime+1, timeOnBooks[j]);
+                    expectedCurve[i+1]+=season(pd1, pd2, bookMonth[j], totalTime);
+                }
             }
-            for(int i=0; i<timeRemaining[j]-1; ++i){
-                double totalTime=timeOnBooks[j]+i;
-                double pd1=pdModel(j, totalTime, timeOnBooks[j]);
-                double pd2=pdModel(j, totalTime+1, timeOnBooks[j]);
-                expectedCurve[i+1]+=season(pd1, pd2, bookMonth[j], totalTime);
-            }
-
+        
         }
         expectedCurve.resize(totalLengthOnBooks-minTimeOnBooks);
 		return expectedCurve;
@@ -155,15 +171,17 @@ public:
         int totalLoans=timeRemaining.size();
 		std::vector<double> expectedCurve(monthsOut, 0.0);
         for(int j=0; j<totalLoans; ++j){
-            int timeOrMonthsOut=monthsOut;
-            if(timeRemaining[j]<monthsOut){
-                timeOrMonthsOut=timeRemaining[j];
-            }
-            for(int i=0; i<timeOrMonthsOut-1; ++i){
-                double totalTime=timeOnBooks[j]+i;
-                double pd1=pdModel(j, totalTime, timeOnBooks[j]);
-                double pd2=pdModel(j, totalTime+1, timeOnBooks[j]);
-                expectedCurve[i+1]+=season(pd1, pd2, bookMonth[j], totalTime);
+            if(termIndicator[j]==0){
+                int timeOrMonthsOut=monthsOut;
+                if(timeRemaining[j]<monthsOut){
+                    timeOrMonthsOut=timeRemaining[j];
+                }
+                for(int i=0; i<timeOrMonthsOut-1; ++i){
+                    double totalTime=timeOnBooks[j]+i;
+                    double pd1=pdModel(j, totalTime, timeOnBooks[j]);
+                    double pd2=pdModel(j, totalTime+1, timeOnBooks[j]);
+                    expectedCurve[i+1]+=season(pd1, pd2, bookMonth[j], totalTime);
+                }
             }
         }
 		double cum1=0;
@@ -193,36 +211,40 @@ public:
         RNorm rndN;
         Newton nt;
         std::vector<double> portfolioResults(n, 0.0);
-        std::vector<double> assetRC(totalLoans, 0.0);
-        std::vector<double> assetExp(totalLoans, 0.0);
+        std::vector<double> assetRC(totalActiveLoans, 0.0);
+        std::vector<double> assetExp(totalActiveLoans, 0.0);
         auto getT=[&](int j){
             double pnl=0;
             double frail=frailty();
-            std::vector<double> assetTmp(totalLoans, 0.0); //required since multithread won't work otherwise
+            std::vector<double> assetTmp(totalActiveLoans, 0.0); //required since multithread won't work otherwise
+            int iActive=0;
             for(int i=0; i<totalLoans;++i){
-                double runif=rnd.getUnif();
-                double totalTime=timeOnBooks[i]+timeRemaining[i];
-                double maxSection=pdModel(i, totalTime, timeOnBooks[i], frail)-runif;
-                double guess;
-                if(maxSection<0){ //then the time to default is greater than timeRemaining and I don't care
-                    guess=100000;//something rediculously large
-                }
-                else{
-                    nt.bisect([&](auto& t){
-                        return pdModel(i, t, timeOnBooks[i], frail)-runif;
-                    }, guess, timeOnBooks[i], totalTime);
-                }
-                if(guess<=totalTime){
-                    double lossResult=lossModel(i, rndN.getNorm(), guess);
-                    if(lossResult<0){
-                        lossResult=0;
+                if(termIndicator[i]==0){
+                    double runif=rnd.getUnif();
+                    double totalTime=timeOnBooks[i]+timeRemaining[i];
+                    double maxSection=pdModel(i, totalTime, timeOnBooks[i], frail)-runif;
+                    double guess;
+                    if(maxSection<0){ //then the time to default is greater than timeRemaining and I don't care
+                        guess=100000;//something rediculously large
                     }
-                    portfolioResults[j]+=lossResult;
-                    assetTmp[i]=lossResult;
-                    assetExp[i]+=lossResult;
+                    else{
+                        nt.bisect([&](auto& t){
+                            return pdModel(i, t, timeOnBooks[i], frail)-runif;
+                        }, guess, timeOnBooks[i], totalTime);
+                    }
+                    if(guess<=totalTime){
+                        double lossResult=lossModel(i, rndN.getNorm(), guess);
+                        if(lossResult<0){
+                            lossResult=0;
+                        }
+                        portfolioResults[j]+=lossResult;
+                        assetTmp[iActive]=lossResult;
+                        assetExp[iActive]+=lossResult;
+                    }
+                    iActive++;
                 }
             }
-            for(int i=0; i<totalLoans;++i){
+            for(int i=0; i<totalActiveLoans;++i){
                 assetRC[i]+=assetTmp[i]*portfolioResults[j];
             }
             return portfolioResults[j];
@@ -284,10 +306,12 @@ public:
                 minTimeOnBooks=timeOnBooks[j];
             }
             for(int i=0; i<timeRemaining[j]-1; ++i){
-                double totalTime=timeOnBooks[j]+i;
-                double pd2AsOf=pdModel(j, totalTime+1, timeOnBooks[j]);
-                double pd1AsOf=pdModel(j, totalTime, timeOnBooks[j]);
-                expectedAsOfCurve[i+1]+=season(pd1AsOf, pd2AsOf, bookMonth[j], totalTime);
+                if(termIndicator[j]==0){
+                    double totalTime=timeOnBooks[j]+i;
+                    double pd2AsOf=pdModel(j, totalTime+1, timeOnBooks[j]);
+                    double pd1AsOf=pdModel(j, totalTime, timeOnBooks[j]);
+                    expectedAsOfCurve[i+1]+=season(pd1AsOf, pd2AsOf, bookMonth[j], totalTime);
+                }
             }
             for(int i=0; i<totalLengthOnBooks; ++i){
                 double pd2=pdModel(j, (double)(i+1), 0);
@@ -330,7 +354,7 @@ public:
     @param cb Callback to retrieve initial prediction and current prediction
     */
     template<typename PDModel, typename LossModel, typename Callback>
-    void createCNLCurve(double balance, PDModel& pdModel, LossModel& lossModel, Callback& cb){
+    void createCNLCurve(double balance,  PDModel& pdModel, LossModel& lossModel, Callback& cb){
         createCNLCurve(balance, pdModel, lossModel, [](double pd1, double pd2, int tmp1, double tmp2){return pd2-pd1;}, cb);
     }
     /**
@@ -358,10 +382,12 @@ public:
                 minTimeOnBooks=timeOnBooks[j];
             }
             for(int i=0; i<timeRemaining[j]-1; ++i){
-                double totalTime=timeOnBooks[j]+i;
-                double pd2AsOf=pdModel(j, totalTime+1, timeOnBooks[j]);
-                double pd1AsOf=pdModel(j, totalTime, timeOnBooks[j]);
-                expectedCurveAsOf[i+1]+=season(pd1AsOf, pd2AsOf, bookMonth[j], totalTime)*lossModel(j, 0.0, totalTime+1);
+                if(termIndicator[j]==0){
+                    double totalTime=timeOnBooks[j]+i;
+                    double pd2AsOf=pdModel(j, totalTime+1, timeOnBooks[j]);
+                    double pd1AsOf=pdModel(j, totalTime, timeOnBooks[j]);
+                    expectedCurveAsOf[i+1]+=season(pd1AsOf, pd2AsOf, bookMonth[j], totalTime)*lossModel(j, 0.0, totalTime+1);
+                }
             }
             for(int i=0; i<totalLengthOnBooks; ++i){
                 double pd2=pdModel(j, (double)(i+1), 0);
@@ -373,7 +399,7 @@ public:
         double cum2=0;
         for(int i=0; i<totalLengthOnBooks-minTimeOnBooks; ++i){
             cum2+=std::max(expectedCurveAsOf[i], 0.0);
-            expectedCurveAsOf[i]=cum2/balance;
+            expectedCurveAsOf[i]=cum2/balance; 
         }
         for(auto& val: expectedCurve){
             cum1+=std::max(val, 0.0);
@@ -402,15 +428,17 @@ public:
 		std::vector<double> expectedCurve(monthsOut, 0.0);
 		int totalLoans=timeOnBooks.size();
         for(int j=0; j<totalLoans; ++j){
-            int timeOrMonthsOut=monthsOut;
-            if(timeRemaining[j]<monthsOut){
-                timeOrMonthsOut=timeRemaining[j];
-            }
-            for(int i=0; i<timeOrMonthsOut-1; ++i){
-                double totalTime=timeOnBooks[j]+i;
-                double pd2AsOf=pdModel(j, totalTime+1, timeOnBooks[j]);
-                double pd1AsOf=pdModel(j, totalTime, timeOnBooks[j]);
-                expectedCurve[i+1]+=season(pd1AsOf, pd2AsOf, bookMonth[j], totalTime)*lossModel(j, 0.0, totalTime+1);
+            if(termIndicator[j]==0){
+                int timeOrMonthsOut=monthsOut;
+                if(timeRemaining[j]<monthsOut){
+                    timeOrMonthsOut=timeRemaining[j];
+                }
+                for(int i=0; i<timeOrMonthsOut-1; ++i){
+                    double totalTime=timeOnBooks[j]+i;
+                    double pd2AsOf=pdModel(j, totalTime+1, timeOnBooks[j]);
+                    double pd1AsOf=pdModel(j, totalTime, timeOnBooks[j]);
+                    expectedCurve[i+1]+=season(pd1AsOf, pd2AsOf, bookMonth[j], totalTime)*lossModel(j, 0.0, totalTime+1);
+                }
             }
         }
         double cum1=0;
