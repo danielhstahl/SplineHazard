@@ -283,8 +283,8 @@ public:
     @param cb Callback to retrieve initial prediction and current prediction
     */
     template<typename PDModel, typename Callback>
-    void createCULCurve(PDModel& pdModel, Callback& cb){
-        createCULCurve(pdModel, [](double pd1, double pd2, int tmp1, double tmp2){return pd2-pd1;}, cb);
+    void createCULCurve(double rUnits,PDModel& pdModel, Callback& cb){
+        createCULCurve(rUnits, pdModel, [](double pd1, double pd2, int tmp1, double tmp2){return pd2-pd1;}, cb);
     }
     /**
     Overloaded function to retrieve the unit loss frequency.
@@ -293,7 +293,7 @@ public:
     @param cb Callback to retrieve initial prediction and current prediction
     */
     template<typename PDModel, typename Seasonality, typename Callback>
-    void createCULCurve(PDModel& pdModel, Seasonality& season, Callback& cb){ 
+    void createCULCurve(double rUnits, PDModel& pdModel, Seasonality& season, Callback& cb){ 
         if(!checkSize()){
             throw 0;
         }
@@ -323,7 +323,7 @@ public:
         double cum2=0;
 		for(int i=0; i<totalLengthOnBooks-minTimeOnBooks; ++i){
             cum2+=std::max(expectedAsOfCurve[i], 0.0);
-            expectedAsOfCurve[i]=cum2/totalLoans;
+            expectedAsOfCurve[i]=cum2/rUnits;
 		}
         for(auto& val: expectedCurve){
             cum1+=std::max(val, 0.0);
@@ -342,7 +342,7 @@ public:
     */
     template<typename PDModel, typename LossModel, typename Callback>
     void createCNLCurve(PDModel& pdModel, LossModel& lossModel, Callback& cb){
-        createCNLCurve(1, pdModel, lossModel, cb);
+        createCNLCurve(1, 1, pdModel, lossModel, cb);
     }
     /**
     Overloaded function to retrieve the net loss frequency.
@@ -354,8 +354,8 @@ public:
     @param cb Callback to retrieve initial prediction and current prediction
     */
     template<typename PDModel, typename LossModel, typename Callback>
-    void createCNLCurve(double balance,  PDModel& pdModel, LossModel& lossModel, Callback& cb){
-        createCNLCurve(balance, pdModel, lossModel, [](double pd1, double pd2, int tmp1, double tmp2){return pd2-pd1;}, cb);
+    void createCNLCurve(double balance,  double balanceAsOf, PDModel& pdModel, LossModel& lossModel, Callback& cb){
+        createCNLCurve(balance, balanceAsOf, pdModel, lossModel, [](double pd1, double pd2, int tmp1, double tmp2){return pd2-pd1;}, cb);
     }
     /**
     Overloaded function to retrieve the net loss frequency.
@@ -369,7 +369,7 @@ public:
     @param cb Callback to retrieve initial prediction and current prediction
     */
     template<typename PDModel, typename LossModel, typename Seasonality, typename Callback>
-    void createCNLCurve(double balance, PDModel& pdModel, LossModel& lossModel, Seasonality& season, Callback& cb){ 
+    void createCNLCurve(double balance, double balanceAsOf, PDModel& pdModel, LossModel& lossModel, Seasonality& season, Callback& cb){ 
         if(!checkSize()){
             throw 0;
         }
@@ -399,7 +399,7 @@ public:
         double cum2=0;
         for(int i=0; i<totalLengthOnBooks-minTimeOnBooks; ++i){
             cum2+=std::max(expectedCurveAsOf[i], 0.0);
-            expectedCurveAsOf[i]=cum2/balance; 
+            expectedCurveAsOf[i]=cum2/balanceAsOf; 
         }
         for(auto& val: expectedCurve){
             cum1+=std::max(val, 0.0);

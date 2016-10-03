@@ -48,6 +48,8 @@ template<typename DB, typename callback>
 void getRawData(int asOf, std::string& sqlQuery, DB db, std::vector<std::string>& hCoefs, std::vector<std::string>& lCoefs, std::string& id, callback& cb){
     double balance;
     double totalLoans;
+    double totalNotDefault;
+    double totalBalanceNotDefault;
     int includeMOB;
     std::string strAsOf=std::to_string(asOf);
     int totalLength=hCoefs.size()+lCoefs.size()+7;//first four of the data: monthsOnBook, monthBooked, timeRemaining, didDefault, and last three APR, AmountFinanced, Collateral
@@ -88,8 +90,8 @@ void getRawData(int asOf, std::string& sqlQuery, DB db, std::vector<std::string>
             sendError(id, msg);
         });
     });
-    std::string getSummaryQuery="SELECT SUM(AmountFinanced) as totalFinanced, COUNT(AMountFinanced) as totalN, CASE WHEN DateDiff(d, MAX(EOMONTH(BookingDate)), MIN(EOMONTH(BookingDate)))=0 THEN 1 ELSE 0 END as includeMonthsOnBook  FROM SandBox.PortSim.LossesByRisk t1 INNER JOIN ("+sqlQuery+") t2 ON t1.LoanNumber=t2.LoanNumber /*WHERE EquifaXScore IS NOT NULL*/";
-    db.query(getSummaryQuery, 3,
+    std::string getSummaryQuery="SELECT SUM(AmountFinanced) as totalFinanced, COUNT(AMountFinanced) as totalN, CASE WHEN DateDiff(d, MAX(EOMONTH(BookingDate)), MIN(EOMONTH(BookingDate)))=0 THEN 1 ELSE 0 END as includeMonthsOnBook, SUM(CASE WHEN DefaultDate<=DateAdd(m, -"+strAsOf+", GETDATE()) THEN 0 ELSE 1 END) as totalNotDefault, SUM(CASE WHEN DefaultDate<=DateAdd(m, -"+strAsOf+", GETDATE()) THEN 0 ELSE AmountFinanced END) as totalBalanceNotDefault FROM SandBox.PortSim.LossesByRisk t1 INNER JOIN ("+sqlQuery+") t2 ON t1.LoanNumber=t2.LoanNumber /*WHERE EquifaXScore IS NOT NULL*/";
+    db.query(getSummaryQuery, 5,
         [&](auto& val, int row, int column){
             switch(column){
                 case 0:
@@ -100,6 +102,12 @@ void getRawData(int asOf, std::string& sqlQuery, DB db, std::vector<std::string>
                     break;
                 case 2:
                     includeMOB=(int)val;
+                    break;
+                case 3:
+                    totalNotDefault=(int)val;
+                    break;
+                case 4:
+                    totalBalanceNotDefault=val;
                     break;
             }
         },
@@ -112,6 +120,8 @@ void getRawData(int asOf, std::string& sqlQuery, DB db, std::vector<std::string>
     std::unordered_map<std::string, std::string> returnString;
     returnString["balance"]=std::to_string(balance);
     returnString["units"]=std::to_string(totalLoans);
+    returnString["totalNotDefault"]=std::to_string(totalNotDefault);
+    returnString["totalBalanceNotDefault"]=std::to_string(totalBalanceNotDefault);
     if(includeMOB==1){
         std::vector<double> unitLoss;
         std::vector<double> cumUnitLoss;
@@ -281,13 +291,15 @@ int main(){
     nc.addEndPoint(std::string("getCNL"), [](rapidjson::Value& val,  std::string& id,  tcb cb){
         auto iterB=val.FindMember("balance");
         auto iterS=val.FindMember("seasonality");
-        if(iterS==val.MemberEnd()||iterB==val.MemberEnd()){
-            sendError(id, std::string("Requires seasonality and balance key!"));
+        auto iterND=val.FindMember("totalBalanceNotDefault");
+        if(iterS==val.MemberEnd()||iterB==val.MemberEnd()||iterND==val.MemberEnd()){
+            sendError(id, std::string("Requires seasonality, totalBalanceNotDefault,  and balance key!"));
             return;
         }
         if(iterS->value.GetBool()){
             model.createCNLCurve(
                 iterB->value.GetDouble(), 
+                iterND->value.GetDouble(), 
                 [&](int a, const auto& b, double c){return haz.predict(a, b, c);}, 
                 [&](int a, double b, double c){return egd.predict(a, b, c);},
                 [&](double p1, double p2, int a, double b){return haz.adjustSeason(p1, p2, log(season.applySeasonality(a, b)));}, 
@@ -299,6 +311,7 @@ int main(){
         else{
              model.createCNLCurve(
                 iterB->value.GetDouble(), 
+                iterND->value.GetDouble(), 
                 [&](int a, const auto& b, double c){return haz.predict(a, b, c);}, 
                 [&](int a, double b, double c){return egd.predict(a, b, c);},
                 [&](std::vector<double>& originationCurve, std::vector<double>& asOfCurve){
@@ -309,12 +322,14 @@ int main(){
     });
     nc.addEndPoint(std::string("getCUL"), [](rapidjson::Value& val,std::string& id,  tcb cb){
         auto iterS=val.FindMember("seasonality");
-        if(iterS==val.MemberEnd()){
-            sendError(id, std::string("Requires seasonality key!"));
+        auto iterND=val.FindMember("totalNotDefault");
+        if(iterS==val.MemberEnd()||iterND==val.MemberEnd()){
+            sendError(id, std::string("Requires seasonality and totalNotDefault key!"));
             return;
         }
         if(iterS->value.GetBool()){
             model.createCULCurve(
+                iterND->value.GetDouble(),
                 [&](int a, const auto& b, double c){return haz.predict(a, b, c);}, 
                 [&](double p1, double p2, int a, double b){return haz.adjustSeason(p1, p2, log(season.applySeasonality(a, b)));}, 
                 [&](std::vector<double>& originationCurve, std::vector<double>& asOfCurve){
@@ -324,6 +339,7 @@ int main(){
         }
         else{
             model.createCULCurve(
+                iterND->value.GetDouble(),
                 [&](int a, const auto& b, double c){return haz.predict(a, b, c);}, 
                 [&](std::vector<double>& originationCurve, std::vector<double>& asOfCurve){
                     cb(id, "{\"originationCurve\":"+convertVectorToJson(originationCurve)+", \"asOfCurve\":"+convertVectorToJson(asOfCurve)+"}");
