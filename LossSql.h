@@ -1,3 +1,5 @@
+#ifndef __LOSSSQL__
+#define __LOSSSQL__
 #include <iostream>
 #include <windows.h>
 #include <sqltypes.h>
@@ -163,3 +165,4 @@ private:
 	    SQLFreeHandle(SQL_HANDLE_DBC, sqlconnectionhandle);
     }
 };
+#endif

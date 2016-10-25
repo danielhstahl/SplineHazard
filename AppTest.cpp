@@ -1,4 +1,5 @@
 #include "NodeCommunicate.h"
+#include "RiskContribution.h"
 #include "Seasonality.h"
 #include "Newton.h"
 #include "EGD.h"
@@ -99,24 +100,27 @@ TEST_CASE("Test sort_indexes", "[RiskContribution]"){
 
     
 }
-/*TEST_CASE("Test NodeCommunication", "[NodeCommunicate]"){
+TEST_CASE("Test NodeCommunication", "[NodeCommunicate]"){
     std::streambuf *sbuf = std::cout.rdbuf();
     NodeCommunication nc;
     nc.addEndPoint(std::string("test1"), [](rapidjson::Value& val,  std::string& id,  tcb cb){
         cb(id, "{\"key1\":\"SomeDataIGot\"}");
     });
     std::stringstream bufferCout;
+    std::stringstream bufferCerr;
     std::stringstream bufferCin;
     
     std::thread t1([&](){
         nc.start(bufferCin);
-        std::cerr<<"{\"test1\":{\"id\":\"123\", \"data\":{\"key\":\"Hello\"}}}"<<std::endl;
-        bufferCin<<"{\"test1\":{\"id\":\"123\", \"data\":{\"key\":\"Hello\"}}}"<<std::endl;
     });
-    
+    std::cout<<"{\"test1\":{\"id\":\"123\", \"data\":{\"key\":\"Hello\"}}}"<<std::endl;
+    bufferCin<<"{\"test1\":{\"id\":\"123\", \"data\":{\"key\":\"Hello\"}}}"<<std::endl;
     std::this_thread::sleep_for (std::chrono::milliseconds(200));
-    
     std::cout.rdbuf(bufferCout.rdbuf());
     REQUIRE(bufferCout.str()=="{\"test1\":{\"id\":\"123\", \"data\":{\"key1\":\"SomeDataIGot\"}}}");
-    t1.detach();
-}*/
+    
+    /*bufferCin<<"somenonJSON"<<std::endl;
+    std::cerr.rdbuf(bufferCerr.rdbuf());
+    REQUIRE(bufferCerr.str()=="{\"immediateError\":\"Invalid JSON\"}");
+    t1.join();*/
+}

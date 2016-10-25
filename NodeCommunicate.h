@@ -3,10 +3,11 @@
 #include <sstream>
 #include <vector>
 #include <map>
+
 #include "document.h" //rapidjson
 #include "writer.h" //rapidjson
 #include "stringbuffer.h" //rapidjson
-#include "LossSplineModel.h"
+#include <unordered_map>
 const int String=0;
 const int Number=1;
 typedef void (*tcb)(std::string&, const std::string&);
@@ -108,24 +109,34 @@ public:
     void start(std::istream& istr){
         while(true){
             std::string parameters;
-            for (parameters; std::getline(istr, parameters);) {
+            /*for (parameters; std::getline(istr, parameters);) {
                 break;
-            }
+            }*/
+            std::getline(istr, parameters);
             rapidjson::Document parms;
-		    parms.Parse(parameters.c_str());//yield data
+		    rapidjson::ParseResult ok =parms.Parse(parameters.c_str());//yield data
 		    parameters.clear(); 
-            bool hasFunction=false;
-            std::string id="";
-            for (auto M=parms.MemberBegin(); M!=parms.MemberEnd(); M++){
-                hasFunction=true;
-                if(holdCallbacks.find(M->name.GetString())!=holdCallbacks.end()){
-                    id=M->value["id"].GetString();
-                    holdCallbacks[M->name.GetString()](M->value["data"],  id, send);
+            if(!ok){
+                sendError(std::string("immediateError"), std::string("Invalid JSON"));
+                /*istr.clear();
+                istr.ignore();*/
+                istr.sync();
+            }
+            else{
+                bool hasFunction=false;
+                std::string id="";
+                for (auto M=parms.MemberBegin(); M!=parms.MemberEnd(); M++){
+                    hasFunction=true;
+                    if(holdCallbacks.find(M->name.GetString())!=holdCallbacks.end()){
+                        id=M->value["id"].GetString();
+                        holdCallbacks[M->name.GetString()](M->value["data"],  id, send);
+                    }
+                }
+                if(!hasFunction){
+                    sendError(id, std::string("No function found"));
                 }
             }
-            if(!hasFunction){
-                sendError(id, std::string("No function found"));
-            }
+            
         }
     }
 

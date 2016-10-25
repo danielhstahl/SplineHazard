@@ -24,7 +24,7 @@ TBD!  Need to create a script that deploys to Azure VM.
 ### Testing
 Must run `test` and then AppTest.exe to ensure that it passes all tests on deploy.
 
-##How to use
+## How to use
 The engine communicates over JSON using callbacks.  To send a message to the program, write to the "out" pipe with a string in the following format:
 
 `{"endPointKey":{"id":"yourUniqueId", "data":yourDataObject}}`
@@ -43,7 +43,7 @@ In the case of an error, the JSON is returned on the "err" pipe and is in the fo
 
 `{"yourUniqueId": "errDescription"}`
 
-It is recommended that the user create a function in the calling program to automatically filter this data.  See, for example, the "cppCallbacks.js" program in http://glsanalytics:7990/projects/PA/repos/lossforecastingapp/browse.
+It is recommended that the user create a function in the calling program to automatically filter this data.  See, for example, the "ws.go" program in http://glsanalytics:7990/projects/PA/repos/lossapplicationservergo/browse/wsCallbacks/ws.go.
 
 
 
