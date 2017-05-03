@@ -1,6 +1,5 @@
 #ifndef __RISKCONTRIBUTION_H_INCLUDED__
 #define __RISKCONTRIBUTION_H_INCLUDED__
-#include "Matrix.h"
 #include <vector>
 #include <numeric>
 const int Upper=0;
@@ -11,7 +10,6 @@ risk metrics and marginal risk metrics
 for portfolios of loans and for individual 
 loans.  The template parameter D tells the class
 whether losses take positive or negative values.
-This model is described in RiskContributions.pdf. 
 */
 template <int D>
 class RiskContribution{
@@ -91,77 +89,13 @@ public:
     @param portfolioVaR  The portfolio VaR,
     which can be computed using getVaR.
     */
-    void getRCCov(std::vector<double>& cov, std::vector<double>& exloss, double portfolioExLoss, double portfolioVariance, double portfolioVaR){
-        double denom=(double)(m-1);
-        int totalLoans=cov.size();
-        portfolioVariance=(portfolioVaR-portfolioExLoss)/portfolioVariance;
-        for(int i=0; i<totalLoans; ++i){
-            cov[i]=(cov[i]-exloss[i]*portfolioExLoss)/denom; //actual sample covariance
-            exloss[i]=exloss[i]/(double)m;
-            cov[i]=exloss[i]+cov[i]*portfolioVariance; //should sum to VaR
-        }
+    template<typename Cov, typename Exloss, typename Variance, typename VaR>
+    auto getRCCov(std::vector<Cov>&& cov, const std::vector<Exloss>& exloss, const Exloss& portfolioExLoss, const Variance& portfolioVariance, const VaR& portfolioVaR){
+        auto varScalar=(portfolioVaR-portfolioExLoss)/portfolioVariance;
+        return futilities::for_each_parallel(cov, [&](const auto& val, const auto& index){
+            return (val-exLoss[index]*portfolioExLoss)*portfolioVariance/(m-1)+exLoss[index]/m;
+        });
     }
-    /*std::vector<double> getShortfallForEachLoan(double q, Matrix<double>& allLoans, std::vector<double>& expLoss){ //eg, .99  
-        int n=allLoans.getN();
-        std::vector<double> shortFallPerLoans(n, 0.0);
-        int index=(int)(q*m);
-        #pragma omp parallel//multithread using openmp
-        {
-        #pragma omp for //multithread using openmp
-            for(int j=0;j<n; ++j){
-                
-                double val=0;
-                for(int i=index; i<m; ++i){
-                    
-                    val+=allLoans.get(j, idx[i]);
-                }
-                shortFallPerLoans[j]=val/(m-index)-expLoss[j]/m;
-            }
-        }
-        return shortFallPerLoans;
-    }
-    std::vector<double> getVarCovForLoan(double metric, Matrix<double>& allLoans, std::vector<double>& port, double portExpLoss){ //eg, .99  
-        int n=allLoans.getN();
-        double offset=n/(n-1);
-        portExpLoss=portExpLoss*offset;//unbias
-        std::vector<double> shortFallPerLoans(n, 0.0);
-        #pragma omp parallel//multithread using openmp
-        {
-        #pragma omp for //multithread using openmp
-            for(int j=0;j<n; ++j){
-                
-                double val=0;
-                double meanLoan=0;
-                double portLoan=0;
-                for(int i=0; i<m; ++i){
-                    //double tmpVal=allLoans.get(j, i)*port[i];
-                    val+=allLoans.get(j, i)*port[i];
-                    meanLoan+=allLoans.get(j, i);
-                }
-                shortFallPerLoans[j]=val/(n-1)-portExpLoss*meanLoan;
-            }
-        }
-        return shortFallPerLoans;
-    }
-    std::vector<double> getShortfallForEachLoan(double q, Matrix<double>& allLoans){ //eg, .99  
-        int n=allLoans.getN();
-        std::vector<double> shortFallPerLoans(n, 0.0);
-        int index=(int)(q*m);
-        #pragma omp parallel//multithread using openmp
-        {
-        #pragma omp for //multithread using openmp
-            for(int j=0;j<n; ++j){
-                
-                double val=0;
-                for(int i=index; i<m; ++i){
-                    
-                    val+=allLoans.get(j, idx[i]);
-                }
-                shortFallPerLoans[j]=val/(m-index);
-            }
-        }
-        return shortFallPerLoans;
-    }*/
-    
+        
 };
 #endif

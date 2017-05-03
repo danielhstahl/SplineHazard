@@ -1,1 +1,0 @@
-cl /EHsc /openmp /O2 /I rapidjson/include/rapidjson user32.lib  odbc32.lib Main.cpp AutoDiff.cpp
