@@ -54,7 +54,7 @@ namespace shazard {
         return cspline(logTimeHorizon)+offset;
     }
     /**
-    Function to retrieve PD for a given loan.
+    Function to retrieve PD for a given loan.  Note that the attributes are de-meaned so that the average is zero.  This is to ensure that the spline coefficients from a model with no coefficients is unbiased and can be sloped.
     @param timeHorizon The time horizon 
     @param currentTime The current time
     @param frailty A positive random variable which jointly impacts losses
