@@ -19,7 +19,7 @@ In the root of the project, run the following commands in order:
 `doxygen lossforecasting`  Generates docs into docs/html and docs/latex
 
 ## Install -- Prod/Release
-TBD!  Need to create a script that deploys to Azure VM.  
+TBD!  
 
 ### Testing
 Must run `test` and then AppTest.exe to ensure that it passes all tests on deploy.
@@ -43,7 +43,7 @@ In the case of an error, the JSON is returned on the "err" pipe and is in the fo
 
 `{"yourUniqueId": "errDescription"}`
 
-It is recommended that the user create a function in the calling program to automatically filter this data.  See, for example, the "ws.go" program in http://glsanalytics:7990/projects/PA/repos/lossapplicationservergo/browse/wsCallbacks/ws.go.
+It is recommended that the user create a function in the calling program to automatically filter this data. 
 
 
 

@@ -83,7 +83,7 @@ namespace shazard {
         return currentTime>0?(exp(gS(log(s), offset))+1.0)/(exp(gS(log(x), offset))+1.0):1.0/(exp(gS(log(x), offset))+1);
     }
     /**
-    function to retrieve Survival probability for odds
+    function to retrieve Survival probability for proportional hazard
     @param timeHorizon The time horizon
     @param currentTime The current time
     @param offset Some offset to apply to probability 
@@ -98,7 +98,7 @@ namespace shazard {
         return currentTime>0?exp(-exp(gS(log(x), offset)))/exp(-exp(gS(log(s), offset))):exp(-exp(gS(log(x), offset)));
     }
     /**
-    function to retrieve Survival probability for odds
+    function to retrieve Survival probability for probit
     @param timeHorizon The time horizon
     @param currentTime The current time
     @param offset Some offset to apply to probability 
@@ -115,9 +115,13 @@ namespace shazard {
 
     template<typename T, typename C, typename Surv, typename Tuple>
     simulatedTimeToDefault(const C& timeOnBooks, const C& timeRemaining, const std::vector<Tuple>& attributesAndCoefficients, const Surv& surv, double frailty, double unif){
-        return (PD(timeOnBooks+timeRemaining, timeOnBooks, frailty, attributesAndCoefficients, surv)-unif<0):100000.0:newton::bisect([&](const auto& theta){
+        const double minPD=0;
+        const double maxPD=1;
+        const double accuracy=.00001;
+        const double maxTime=100000.0; //this is something so large that it essentially means the loan will never default
+        return (PD(timeOnBooks+timeRemaining, timeOnBooks, frailty, attributesAndCoefficients, surv)-unif<0):defaultMaxTime:newton::bisect([&](const auto& theta){
             return PD(timeOnBooks+theta, timeOnBooks, frailty, attributesAndCoefficients, surv)-unif;
-        }, 0, 1, .00001, .00001);
+        }, minPD, maxPD, accuracy, accuracy);
     }
 
     template<typename T, typename C, typename F, typename A, typename Tuple, typename U, typename SurvivalFunction>
