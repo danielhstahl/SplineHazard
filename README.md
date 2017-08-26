@@ -1,4 +1,20 @@
-# Lossengine
+# SplineHazard
+
+While this is the most recent version of the credit loss model based off time-to-default and splines, it will need a good amount of work to become production ready.  
+
+This model is based off the work in the [FlexSurv](https://cran.r-project.org/web/packages/flexsurv/flexsurv.pdf) R package.  It implements, in C++, the "hazard", "odds", and "normal" models.  This is intended to be a production version using coefficients estimated from the FlexSurv package. 
+
+In tests, the FlexSurv packages does better when only estimating the spline and not the spline AND the coefficients.  It is possible to get around this when using the "odds" model: note that the "odds" model is the same as a logistic model except that there exists an extra "term" (the spline s(x, gamma)) which is time dependent.  This term, in a standard logistic model, is swallowed by the intercept since it is constant given a fixed time horizon.  This allows the model developer to de-mean the explanatory variables and estimate a standard logistic model (given right censored data at some time point t).  Then the developer can estimate the FlexSurv spline without explanatory variables.  The result will be essentially identical to estimating the entire model in FlexSurv since the "average" loan will have all zeros for the affine part of the model.  
+
+To sum up, the process is as follows:
+
+* Obtain loan data
+* Pick an arbitrary right censor date (eg 12 months) after origination
+* De-mean the explanatory variables
+* Estimate a logistic regression (note: a Neural Net with cross-entropy cost function may work as well)
+* Separately estimate the FlexSurv spline with no explanatory variables
+* Provide the SplineHazard with the coefficients
+
 
 ## Description
 
