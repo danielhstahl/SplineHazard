@@ -19,14 +19,6 @@ auto maxZeroOrNumber(const T& number){
     return number>0?number:0;
 }
 
-template<typename T>
-auto template_power<0>(const T& number){
-    return number;
-}
-template<typename T, int N>
-auto template_power<N>(const T& number){
-    return template_power<N-1>*number;
-}
 
 
 const double isqrt2=1.0/sqrt(2.0);
@@ -37,14 +29,14 @@ namespace shazard {
         const auto minDiff=x-knots_gamma.front()<0>;//difference between given x and first knot
         const auto maxDiff=knots_gamma.back()<0>-x;//difference between last knot and given x
         const auto span=knots_gamma.back()<0>-knots_gamma.front()<0>;//span of knots
-        const auto tripleMin=template_power<3>(maxZeroOrNumber(minDiff)); //minDiff^3, if minDiff>0 else 0
-        const auto tripleMax=template_power<3>(maxZeroOrNumber(maxDiff));//maxDiff^3, if minDiff>0 else 0
+        const auto tripleMin=futilities::const_power(maxZeroOrNumber(minDiff), 3); //minDiff^3, if minDiff>0 else 0
+        const auto tripleMax=futilities::const_power(maxZeroOrNumber(maxDiff), 3);//maxDiff^3, if minDiff>0 else 0
         int startFrom=1;
         int endFrom=1;
         return futilities::sum_subset(knots_gamma, startFrom, endFrom, [&](const auto& tuple, const auto& index){
             const auto lambda=(knots_gamma.back()<0>-tuple<0>)/span;
             const auto currDiff=x-tuple<0>;//difference between given x and first knot
-            const auto tripleCurr=template_power<3>(maxZeroOrNumber(minDiff)); //minDiff^3, if minDiff>0 else 0
+            const auto tripleCurr=futilities::const_power(maxZeroOrNumber(minDiff), 3); //minDiff^3, if minDiff>0 else 0
             return (tripleCurr+maxDiff*(lambda-1)-minDiff*lambda)*knots_gamma[index+1]<1>;
         })+knots_gamma.front()<1>+knots_gamma[1]<1>*x;
     }
